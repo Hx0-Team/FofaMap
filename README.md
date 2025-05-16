@@ -381,7 +381,7 @@ FoFaMap 已加入 FOFA [共创者计划](https://fofa.info/development)，感谢
 
 **【知识星球】福利大放送**
 
-<img width="318" alt="image" src="https://github.com/asaotomo/ZipCracker/assets/67818638/659b508c-12ad-47a9-8df5-f2c36403c02b">
+<img width="318" alt="image" src="https://github.com/user-attachments/assets/94849d79-bcac-4a43-9221-3e2718225cb6">
 
 
 ## 历史Star
