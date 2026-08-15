@@ -1,4 +1,4 @@
-# 🗺️ FofaMap 2.0.1
+# 🗺️ FofaMap 2.0.1 - 证据驱动的资产测绘智能体
 
 ![FofaMap 2.0.1 中文产品海报](docs/assets/readme/fofamap-2.0.1-hero-cn.png)
 
