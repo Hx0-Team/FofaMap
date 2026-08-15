@@ -4,10 +4,23 @@
 
 > 把自然语言资产发现、FOFA 证据检索、AI 反思总结与经人工审批的 Nuclei 扫描，放进同一条可追溯工作流。
 
-[![Version](https://img.shields.io/badge/version-2.0.1-00B8D9.svg)](https://github.com/asaotomo/FofaMap)
-[![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB.svg)](https://www.python.org/)
-[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
-[![MCP](https://img.shields.io/badge/MCP-2.0-111827.svg)](https://modelcontextprotocol.io/)
+<p align="center">
+  <a href="https://github.com/asaotomo/FofaMap/releases/tag/v2.0.1"><img alt="Release" src="https://img.shields.io/github/v/release/asaotomo/FofaMap?label=Release&amp;color=00B8D9&amp;style=flat-square"></a>
+  <a href="https://github.com/asaotomo/FofaMap/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/asaotomo/FofaMap/ci.yml?branch=v2.0.1&amp;label=CI&amp;style=flat-square"></a>
+  <a href="https://github.com/asaotomo/FofaMap/actions/workflows/security.yml"><img alt="Security" src="https://img.shields.io/github/actions/workflow/status/asaotomo/FofaMap/security.yml?branch=v2.0.1&amp;label=Security&amp;style=flat-square"></a>
+  <a href="https://www.python.org/"><img alt="Python 3.10+" src="https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&amp;logoColor=white&amp;style=flat-square"></a>
+  <a href="LICENSE"><img alt="Apache 2.0" src="https://img.shields.io/badge/License-Apache_2.0-2563EB?style=flat-square"></a>
+  <img alt="Windows, macOS and Linux" src="https://img.shields.io/badge/Platforms-Windows%20%7C%20macOS%20%7C%20Linux-64748B?style=flat-square">
+</p>
+
+<p align="center">
+  <a href="#local-agent"><img alt="Agent" src="https://img.shields.io/badge/Agent-Self--Reflection-8B5CF6?style=flat-square"></a>
+  <a href="#cli-reference"><img alt="CLI" src="https://img.shields.io/badge/CLI-Full_Reference-0EA5E9?style=flat-square"></a>
+  <a href="#agent-mcp-skill"><img alt="MCP 2.0" src="https://img.shields.io/badge/MCP_2.0-15_Tools-111827?style=flat-square"></a>
+  <a href="#agent-mcp-skill"><img alt="Agent Skill" src="https://img.shields.io/badge/Skill-Multi--Host-EC4899?style=flat-square"></a>
+  <a href="#rest-api"><img alt="REST API" src="https://img.shields.io/badge/REST_API-OpenAPI_3.1-009688?style=flat-square"></a>
+  <a href="#nuclei"><img alt="Nuclei approval" src="https://img.shields.io/badge/Nuclei-Approval_Gated-F97316?style=flat-square"></a>
+</p>
 
 FofaMap 既能像传统 CLI 一样直接执行 FOFA 语句，也能让 Agent 把一句自然语言需求拆成多组查询，依据真实命中自我反思，最后输出带证据边界的资产简报。需要扫描时，它只先生成方案；目标、模板和严重级别必须经过一次性审批才能交给 Nuclei。
 
