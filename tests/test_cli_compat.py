@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import sys
 from io import StringIO
 from pathlib import Path
@@ -318,7 +319,8 @@ def test_setup_config_allows_explicit_secret_opt_in_and_sets_private_permissions
     content = target.read_text(encoding="utf-8")
     assert "fofa-test-key" in content
     assert "model-test-key" in content
-    assert target.stat().st_mode & 0o777 == 0o600
+    if os.name != "nt":
+        assert target.stat().st_mode & 0o777 == 0o600
 
 
 def test_init_falls_back_to_confirmed_yaml_when_keyring_is_unavailable(tmp_path: Path, monkeypatch):
@@ -369,7 +371,16 @@ def test_init_falls_back_to_confirmed_yaml_when_keyring_is_unavailable(tmp_path:
     assert data["system"]["concurrency"] == 10
     assert data["system"]["output_dir"] == "results"
     assert data["security"]["local_yaml_secrets_confirmed"] is True
-    assert target.stat().st_mode & 0o777 == 0o600
+    if os.name != "nt":
+        assert target.stat().st_mode & 0o777 == 0o600
+
+
+def test_windows_local_yaml_notice_does_not_claim_posix_permissions(monkeypatch):
+    monkeypatch.setattr(fofamap.os, "name", "nt")
+    notice = fofamap._local_yaml_security_notice()
+    assert "Windows" in notice
+    assert "无法用 POSIX 0600 表示" in notice
+    assert "系统钥匙串或环境变量" in notice
 
 
 def test_keyring_diagnostic_explains_missing_package(monkeypatch):

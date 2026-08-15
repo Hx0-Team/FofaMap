@@ -2,7 +2,7 @@
 
 ## Credentials and configuration
 
-Copy `config/settings.example.yaml` to `config/settings.yaml`, or run `fofamap init`. Environment variables, Keyring and container secrets remain preferred. If Keyring is unavailable, the wizard can write FOFA and model keys to the local YAML only after explicit confirmation; it applies `0600` permissions and the default path is gitignored. `FOFA_KEY` remains a temporary compatibility alias; `FOFA_EMAIL` is optional for current key-only FOFA endpoints. A missing YAML file is valid.
+Copy `config/settings.example.yaml` to `config/settings.yaml`, or run `fofamap init`. Environment variables, Keyring and container secrets remain preferred. If Keyring is unavailable, the wizard can write FOFA and model keys to the local YAML only after explicit confirmation; the default path is gitignored. On macOS/Linux it applies `0600` permissions. Windows relies on the current user directory ACL and the wizard warns that Keyring or environment variables are safer. `FOFA_KEY` remains a temporary compatibility alias; `FOFA_EMAIL` is optional for current key-only FOFA endpoints. A missing YAML file is valid.
 
 Keys found in YAML still load with a warning. Any key that was ever committed must be rotated; a newly confirmed local-only key may remain only while the file stays private and untracked.
 

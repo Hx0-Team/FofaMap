@@ -6,10 +6,10 @@ Earlier FofaMap 2.0 source archives may contain FOFA and model credentials in `c
 
 1. Revoke and rotate it in the relevant provider console.
 2. Check FOFA/model usage and access logs for unexpected activity.
-3. Prefer environment variables, Keyring, or container secrets. For local CLI compatibility, the init wizard also permits an explicitly confirmed, gitignored `0600` YAML file; never commit or share it.
+3. Prefer environment variables, Keyring, or container secrets. For local CLI compatibility, the init wizard also permits an explicitly confirmed, gitignored YAML file; never commit or share it. macOS/Linux use `0600`; Windows relies on the current user directory ACL and displays an explicit warning.
 4. Coordinate a repository backup and contributor freeze before rewriting history.
 
-This working directory has no `.git` metadata, so history was not modified here. In the canonical repository, use a reviewed `git filter-repo` procedure, force-push only after notifying collaborators, then invalidate old clones and forks where possible. Secret scanning does not make an exposed credential safe again.
+Removing a secret from the latest commit is not sufficient because earlier commits, tags, releases, forks and local clones may retain it. For a coordinated history cleanup, back up the repository, freeze contributor pushes, use a reviewed `git filter-repo` procedure, notify collaborators before any force-push, and invalidate affected clones and forks where possible. Secret scanning does not make an exposed credential safe again.
 
 ## Runtime boundaries
 

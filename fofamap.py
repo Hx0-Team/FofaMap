@@ -302,6 +302,12 @@ def _wizard(options: dict[str, Any]) -> dict[str, Any] | None:
     return options
 
 
+def _local_yaml_security_notice() -> str:
+    if os.name == "nt":
+        return "Windows 依赖当前用户目录 ACL，无法用 POSIX 0600 表示；建议优先使用系统钥匙串或环境变量"
+    return "文件将设置为仅当前用户可读写（0600）"
+
+
 def _save_setup_config(path: Path, data: dict[str, Any], *, allow_secrets: bool = False) -> None:
     """Persist setup data, requiring explicit opt-in before writing credentials."""
     secret_names = {"api_key", "key", "token", "secret", "password"}
@@ -317,7 +323,8 @@ def _save_setup_config(path: Path, data: dict[str, Any], *, allow_secrets: bool 
         raise ValueError("配置文件不得包含密钥；请使用环境变量、系统钥匙串或容器密钥")
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(yaml.safe_dump(data, allow_unicode=True, sort_keys=False), encoding="utf-8")
-    path.chmod(0o600)
+    if os.name != "nt":
+        path.chmod(0o600)
 
 
 def _store_keyring(service: str, username: str, secret: str) -> bool:
@@ -517,7 +524,7 @@ def _interactive_init() -> int:
             questionary.confirm(
                 f"系统钥匙串不可用：{_keyring_unavailable_reason()}\n"
                 f"是否将 {', '.join(labels)} 写入本地配置 {target}？\n"
-                "默认配置路径已加入 Git 忽略规则，并将设置为仅当前用户可读写（0600）；"
+                f"默认配置路径已加入 Git 忽略规则；{_local_yaml_security_notice()}；"
                 "自定义路径请自行确认忽略规则。文件中仍是明文密钥。",
                 default=True,
             ).ask()
@@ -532,8 +539,8 @@ def _interactive_init() -> int:
     console.print(f"[bold green]✓ 配置已写入：[/][cyan]{target}[/]")
     if secrets_in_yaml:
         console.print(
-            "[bold yellow]⚠ 密钥已按你的确认写入本地 YAML。请勿提交或分享该文件；权限已设置为 0600。"
-            "若使用自定义配置路径，请确认它已被 Git 忽略。[/]"
+            "[bold yellow]⚠ 密钥已按你的确认写入本地 YAML。请勿提交或分享该文件；"
+            f"{_local_yaml_security_notice()}。若使用自定义配置路径，请确认它已被 Git 忽略。[/]"
         )
     else:
         if failed_fofa_key:
