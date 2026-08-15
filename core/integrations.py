@@ -1,0 +1,529 @@
+"""Safe, reversible MCP and Agent Skill installers for supported hosts."""
+
+from __future__ import annotations
+
+import base64
+import json
+import os
+import shutil
+import subprocess
+from dataclasses import asdict, dataclass, field
+from pathlib import Path
+from typing import Any
+from urllib.parse import quote
+
+import yaml
+
+
+class IntegrationError(ValueError):
+    """Raised when an integration cannot be changed without risking user data."""
+
+
+@dataclass(frozen=True)
+class HostSupport:
+    id: str
+    name: str
+    mcp: str
+    skills: str
+    notes: str = ""
+    aliases: tuple[str, ...] = ()
+
+
+@dataclass
+class IntegrationResult:
+    target: str
+    scope: str
+    action: str
+    dry_run: bool
+    mcp_support: str
+    skill_support: str
+    changes: list[str] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)
+    deeplink: str | None = None
+
+    def as_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+HOSTS: tuple[HostSupport, ...] = (
+    HostSupport("cursor", "Cursor", "native", "native", aliases=("cursor-agent",)),
+    HostSupport("codex", "OpenAI Codex", "native", "native", aliases=("openai-codex",)),
+    HostSupport("claude", "Claude Code", "native", "native", aliases=("claude-code",)),
+    HostSupport("opencode", "OpenCode", "native", "native", aliases=("open-code",)),
+    HostSupport(
+        "deepseek-harness",
+        "DeepSeek Harness",
+        "tools-only",
+        "native",
+        "DeepSeek Harness 的 MCP 桥接只暴露 Tools，不会消费 MCP Resources 和 Prompts。",
+        ("deepseek", "dsh"),
+    ),
+    HostSupport(
+        "lmstudio",
+        "LM Studio",
+        "native",
+        "compatibility",
+        "LM Studio 原生支持 MCP，但没有官方智能体 Skill 加载器；Skill 已放到兼容目录，供社区加载器使用。",
+        ("lm-studio",),
+    ),
+    HostSupport(
+        "openclaw",
+        "OpenClaw",
+        "compatible-bundle",
+        "compatible-bundle",
+        "OpenClaw 会原生加载捆绑的 Codex 清单、MCP 服务和 Skill。",
+        ("open-claw",),
+    ),
+    HostSupport("hermes", "Hermes Agent", "native", "native", aliases=("hermes-agent",)),
+    HostSupport(
+        "grok",
+        "Grok Build",
+        "claude-compatible-plugin",
+        "native-plugin",
+        "Grok Build 会加载 Claude 兼容的 MCP/插件包以及原生 Grok Skill。",
+        ("gork", "grok-build"),
+    ),
+)
+
+_BY_NAME = {name: host for host in HOSTS for name in (host.id, *host.aliases)}
+_BEGIN = "# >>> fofamap managed integration >>>"
+_END = "# <<< fofamap managed integration <<<"
+_MARKER = ".fofamap-managed.json"
+
+
+def supported_hosts() -> list[dict[str, Any]]:
+    """Return stable, machine-readable host capability metadata."""
+    return [asdict(host) for host in HOSTS]
+
+
+def normalize_host(value: str) -> HostSupport:
+    key = value.strip().lower()
+    try:
+        return _BY_NAME[key]
+    except KeyError as exc:
+        raise IntegrationError(f"不支持的智能体：{value}。可用值：{', '.join(host.id for host in HOSTS)}") from exc
+
+
+def _asset_root() -> Path:
+    root = Path(__file__).resolve().parent.parent / "agent-kit"
+    if not root.is_dir():
+        raise IntegrationError(f"安装包缺少 agent-kit 分发资产：{root}")
+    return root
+
+
+def _backup(path: Path, dry_run: bool, changes: list[str]) -> None:
+    if not path.exists():
+        return
+    backup = path.with_name(f"{path.name}.fofamap.bak")
+    if not backup.exists():
+        changes.append(f"backup {path} -> {backup}")
+        if not dry_run:
+            backup.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(path, backup)
+
+
+def _write_text(path: Path, content: str, *, dry_run: bool, changes: list[str]) -> None:
+    old = path.read_text(encoding="utf-8") if path.exists() else None
+    if old == content:
+        changes.append(f"unchanged {path}")
+        return
+    _backup(path, dry_run, changes)
+    changes.append(f"write {path}")
+    if not dry_run:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+
+
+def _write_json(path: Path, data: dict[str, Any], *, dry_run: bool, changes: list[str]) -> None:
+    _write_text(path, json.dumps(data, ensure_ascii=False, indent=2) + "\n", dry_run=dry_run, changes=changes)
+
+
+def _read_json(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        return {}
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise IntegrationError(f"无法安全解析 JSON 配置 {path}：{exc}") from exc
+    if not isinstance(value, dict):
+        raise IntegrationError(f"配置根节点必须是 JSON 对象：{path}")
+    return value
+
+
+def _set_nested(data: dict[str, Any], keys: tuple[str, ...], value: Any) -> None:
+    current = data
+    for key in keys[:-1]:
+        child = current.setdefault(key, {})
+        if not isinstance(child, dict):
+            raise IntegrationError(f"配置键 {'.'.join(keys[:-1])} 已存在且不是对象")
+        current = child
+    current[keys[-1]] = value
+
+
+def _remove_nested(data: dict[str, Any], keys: tuple[str, ...]) -> bool:
+    current: Any = data
+    parents: list[tuple[dict[str, Any], str]] = []
+    for key in keys[:-1]:
+        if not isinstance(current, dict) or not isinstance(current.get(key), dict):
+            return False
+        parents.append((current, key))
+        current = current[key]
+    if not isinstance(current, dict) or keys[-1] not in current:
+        return False
+    del current[keys[-1]]
+    for parent, key in reversed(parents):
+        if parent[key] == {}:
+            del parent[key]
+    return True
+
+
+def _json_config(
+    path: Path,
+    keys: tuple[str, ...],
+    entry: dict[str, Any],
+    *,
+    uninstall: bool,
+    dry_run: bool,
+    changes: list[str],
+) -> None:
+    data = _read_json(path)
+    if uninstall:
+        changed = _remove_nested(data, keys)
+    else:
+        _set_nested(data, keys, entry)
+        changed = True
+    if not changed:
+        changes.append(f"absent {path}:{'.'.join(keys)}")
+        return
+    _write_json(path, data, dry_run=dry_run, changes=changes)
+
+
+def _replace_managed_block(content: str, block: str | None) -> str:
+    start = content.find(_BEGIN)
+    end = content.find(_END)
+    if (start < 0) != (end < 0) or (start >= 0 and end < start):
+        raise IntegrationError("发现不完整的 FofaMap 托管集成标记，请先手动修复")
+    if start >= 0:
+        end += len(_END)
+        content = (content[:start].rstrip() + "\n" + content[end:].lstrip("\n")).strip()
+    if block is not None:
+        managed = f"{_BEGIN}\n{block.rstrip()}\n{_END}"
+        content = f"{content.rstrip()}\n\n{managed}" if content.strip() else managed
+    return content.rstrip() + "\n" if content.strip() else ""
+
+
+def _managed_config(
+    path: Path, block: str, *, uninstall: bool, dry_run: bool, changes: list[str], remove_empty: bool = False
+) -> None:
+    old = path.read_text(encoding="utf-8") if path.exists() else ""
+    new = _replace_managed_block(old, None if uninstall else block)
+    if uninstall and not new and remove_empty:
+        if not path.exists():
+            changes.append(f"absent {path}")
+            return
+        _backup(path, dry_run, changes)
+        changes.append(f"remove {path}")
+        if not dry_run:
+            path.unlink()
+        return
+    _write_text(path, new, dry_run=dry_run, changes=changes)
+
+
+def _copy_managed(source: Path, destination: Path, *, kind: str, force: bool, dry_run: bool, changes: list[str]) -> None:
+    if destination.exists():
+        marker = destination / _MARKER
+        if not marker.exists() and not force:
+            raise IntegrationError(f"拒绝覆盖非 FofaMap 管理的 {kind}：{destination}；确认后可使用 --force")
+        if not marker.exists() and force:
+            backup = destination.with_name(f"{destination.name}.fofamap.bak")
+            if backup.exists():
+                raise IntegrationError(f"备份目录已存在，无法安全覆盖：{backup}")
+            changes.append(f"backup {destination} -> {backup}")
+            if not dry_run:
+                shutil.move(str(destination), str(backup))
+        else:
+            changes.append(f"replace {destination}")
+            if not dry_run:
+                shutil.rmtree(destination)
+    else:
+        changes.append(f"install {destination}")
+    if not dry_run:
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(source, destination)
+        (destination / _MARKER).write_text(
+            json.dumps({"managed_by": "fofamap", "kind": kind, "version": "2.0.1"}, indent=2) + "\n", encoding="utf-8"
+        )
+
+
+def _preflight_managed(destination: Path, *, kind: str, force: bool, uninstall: bool) -> None:
+    """Reject ownership conflicts before any companion config is mutated."""
+    if not destination.exists():
+        return
+    if (destination / _MARKER).exists():
+        return
+    verb = "删除" if uninstall else "覆盖"
+    if uninstall or not force:
+        raise IntegrationError(f"拒绝{verb}非 FofaMap 管理的 {kind}：{destination}" + ("；确认后可使用 --force" if not uninstall else ""))
+    backup = destination.with_name(f"{destination.name}.fofamap.bak")
+    if backup.exists():
+        raise IntegrationError(f"备份目录已存在，无法安全覆盖：{backup}")
+
+
+def _remove_managed(destination: Path, *, kind: str, dry_run: bool, changes: list[str]) -> None:
+    if not destination.exists():
+        changes.append(f"absent {destination}")
+        return
+    marker = destination / _MARKER
+    if not marker.exists():
+        raise IntegrationError(f"拒绝删除非 FofaMap 管理的 {kind}：{destination}")
+    changes.append(f"remove {destination}")
+    if not dry_run:
+        shutil.rmtree(destination)
+
+
+def _install_skill(
+    destination: Path, *, uninstall: bool, force: bool, dry_run: bool, changes: list[str]
+) -> None:
+    if uninstall:
+        _remove_managed(destination, kind="skill", dry_run=dry_run, changes=changes)
+    else:
+        _copy_managed(_asset_root() / "skills" / "fofamap", destination, kind="skill", force=force, dry_run=dry_run, changes=changes)
+
+
+def _install_plugin(
+    destination: Path,
+    *,
+    server_command: str,
+    uninstall: bool,
+    force: bool,
+    dry_run: bool,
+    changes: list[str],
+) -> None:
+    if uninstall:
+        _remove_managed(destination, kind="plugin", dry_run=dry_run, changes=changes)
+        return
+    _copy_managed(_asset_root() / "plugins" / "fofamap", destination, kind="plugin", force=force, dry_run=dry_run, changes=changes)
+    if dry_run:
+        return
+    mcp_path = destination / ".mcp.json"
+    mcp_data = _read_json(mcp_path)
+    mcp_data["mcpServers"]["fofamap"]["command"] = server_command
+    mcp_path.write_text(json.dumps(mcp_data, indent=2) + "\n", encoding="utf-8")
+    openclaw_path = destination / "openclaw.plugin.json"
+    openclaw_data = _read_json(openclaw_path)
+    openclaw_data["mcpServers"]["fofamap"]["command"] = server_command
+    openclaw_path.write_text(json.dumps(openclaw_data, indent=2) + "\n", encoding="utf-8")
+
+
+def _install_openclaw_plugin(
+    destination: Path,
+    *,
+    home: Path,
+    server_command: str,
+    uninstall: bool,
+    force: bool,
+    dry_run: bool,
+    changes: list[str],
+) -> bool:
+    """Use OpenClaw's tracked lifecycle when its CLI is available."""
+    executable = shutil.which("openclaw")
+    if executable is None:
+        return False
+    _preflight_managed(destination, kind="plugin", force=force, uninstall=uninstall)
+    state_dir = home / ".openclaw"
+    env = os.environ.copy()
+    env["OPENCLAW_STATE_DIR"] = str(state_dir)
+    env["OPENCLAW_CONFIG_PATH"] = str(state_dir / "openclaw.json")
+    if uninstall:
+        if not destination.exists():
+            changes.append(f"absent {destination}")
+            return True
+        command = [executable, "plugins", "uninstall", "fofamap", "--force"]
+        changes.append("run openclaw plugins uninstall fofamap --force")
+    elif destination.exists():
+        return False
+    else:
+        command = [executable, "plugins", "install", str(_asset_root() / "plugins" / "fofamap")]
+        changes.append("run openclaw plugins install <fofamap-bundle>")
+    if dry_run:
+        return True
+    completed = subprocess.run(command, capture_output=True, text=True, check=False, env=env)  # noqa: S603
+    if completed.returncode != 0:
+        detail = (completed.stderr or completed.stdout).strip()
+        raise IntegrationError(f"OpenClaw 插件生命周期命令失败：{detail}")
+    if not uninstall:
+        marker = destination / _MARKER
+        marker.write_text(
+            json.dumps({"managed_by": "fofamap", "kind": "plugin", "version": "2.0.1"}, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        mcp_path = destination / ".mcp.json"
+        mcp_data = _read_json(mcp_path)
+        mcp_data["mcpServers"]["fofamap"]["command"] = server_command
+        mcp_path.write_text(json.dumps(mcp_data, indent=2) + "\n", encoding="utf-8")
+    return True
+
+
+def _paths(host: str, scope: str, root: Path, home: Path) -> tuple[Path | None, Path | None]:
+    project = scope == "project"
+    mapping: dict[str, tuple[Path | None, Path | None]] = {
+        "cursor": (
+            root / ".cursor" / "mcp.json" if project else home / ".cursor" / "mcp.json",
+            root / ".cursor" / "skills" / "fofamap" if project else home / ".cursor" / "skills" / "fofamap",
+        ),
+        "codex": (
+            root / ".codex" / "config.toml" if project else home / ".codex" / "config.toml",
+            root / ".agents" / "skills" / "fofamap" if project else home / ".agents" / "skills" / "fofamap",
+        ),
+        "claude": (
+            root / ".mcp.json" if project else home / ".claude.json",
+            root / ".claude" / "skills" / "fofamap" if project else home / ".claude" / "skills" / "fofamap",
+        ),
+        "opencode": (
+            root / "opencode.json" if project else home / ".config" / "opencode" / "opencode.json",
+            root / ".opencode" / "skills" / "fofamap" if project else home / ".config" / "opencode" / "skills" / "fofamap",
+        ),
+        "deepseek-harness": (
+            root / ".dsh" / "fofamap.cordis.yml" if project else home / ".dsh" / "cordis.patch.yml",
+            root / ".dsh" / "skills" / "fofamap" if project else home / ".dsh" / "skills" / "fofamap",
+        ),
+        "lmstudio": (home / ".lmstudio" / "mcp.json", home / ".lmstudio" / "skills" / "fofamap"),
+        "openclaw": (
+            root / ".openclaw" / "extensions" / "fofamap" if project else home / ".openclaw" / "extensions" / "fofamap",
+            None,
+        ),
+        "hermes": (
+            home / ".hermes" / "config.yaml",
+            root / ".agents" / "skills" / "fofamap" if project else home / ".hermes" / "skills" / "fofamap",
+        ),
+        "grok": (
+            root / ".grok" / "plugins" / "fofamap" if project else home / ".grok" / "plugins" / "fofamap",
+            None,
+        ),
+    }
+    return mapping[host]
+
+
+def integrate_host(
+    target: str,
+    *,
+    scope: str = "user",
+    root: Path | None = None,
+    home: Path | None = None,
+    server_command: str = "fofamap-mcp",
+    uninstall: bool = False,
+    dry_run: bool = False,
+    force: bool = False,
+) -> IntegrationResult:
+    """Install or remove one host integration without copying credentials."""
+    host = normalize_host(target)
+    if scope not in {"user", "project"}:
+        raise IntegrationError("scope 必须是 user 或 project")
+    if not server_command.strip() or "\x00" in server_command:
+        raise IntegrationError("MCP 服务命令不能为空或包含 NUL")
+    root = (root or Path.cwd()).resolve()
+    home = (home or Path.home()).expanduser().resolve()
+    action = "uninstall" if uninstall else "install"
+    result = IntegrationResult(host.id, scope, action, dry_run, host.mcp, host.skills)
+    if host.notes:
+        result.notes.append(host.notes)
+    config_path, skill_path = _paths(host.id, scope, root, home)
+    stdio = {"command": server_command, "args": []}
+
+    if host.id in {"openclaw", "grok"}:
+        assert config_path is not None
+        handled = False
+        if host.id == "openclaw" and scope == "user":
+            handled = _install_openclaw_plugin(
+                config_path,
+                home=home,
+                server_command=server_command,
+                uninstall=uninstall,
+                force=force,
+                dry_run=dry_run,
+                changes=result.changes,
+            )
+        if not handled:
+            _install_plugin(
+                config_path,
+                server_command=server_command,
+                uninstall=uninstall,
+                force=force,
+                dry_run=dry_run,
+                changes=result.changes,
+            )
+        if host.id == "openclaw":
+            result.notes.append("安装完成后请重启 OpenClaw，或刷新其插件列表。")
+        else:
+            result.notes.append("Grok Build 会自动发现已安装的 Claude 兼容插件包。")
+        return result
+
+    assert config_path is not None and skill_path is not None
+    _preflight_managed(skill_path, kind="skill", force=force, uninstall=uninstall)
+    if host.id in {"cursor", "claude", "lmstudio"}:
+        _json_config(
+            config_path,
+            ("mcpServers", "fofamap"),
+            stdio,
+            uninstall=uninstall,
+            dry_run=dry_run,
+            changes=result.changes,
+        )
+    elif host.id == "opencode":
+        _json_config(
+            config_path,
+            ("mcp", "fofamap"),
+            {"type": "local", "command": [server_command], "enabled": True},
+            uninstall=uninstall,
+            dry_run=dry_run,
+            changes=result.changes,
+        )
+    elif host.id == "codex":
+        block = f'[mcp_servers.fofamap]\ncommand = {json.dumps(server_command)}\nargs = []'
+        _managed_config(config_path, block, uninstall=uninstall, dry_run=dry_run, changes=result.changes)
+    elif host.id == "deepseek-harness":
+        block = (
+            "- insert:\n"
+            "    - id: mcp-fofamap\n"
+            "      name: '@deepseek-ai/dsh-mcp-client'\n"
+            "      config:\n"
+            "        serverName: fofamap\n"
+            "        transport: stdio\n"
+            f"        command: {json.dumps(server_command)}\n"
+            "        args: []\n"
+            "        failOnStartupError: true"
+        )
+        _managed_config(
+            config_path, block, uninstall=uninstall, dry_run=dry_run, changes=result.changes, remove_empty=scope == "project"
+        )
+        if scope == "project":
+            result.notes.append(f"启动 DeepSeek Harness 时请加上 --patch {config_path}，以启用此项目级 MCP 桥接。")
+    elif host.id == "hermes":
+        try:
+            data = yaml.safe_load(config_path.read_text(encoding="utf-8")) if config_path.exists() else {}
+        except (OSError, yaml.YAMLError) as exc:
+            raise IntegrationError(f"无法安全解析 Hermes YAML 配置 {config_path}：{exc}") from exc
+        if data is None:
+            data = {}
+        if not isinstance(data, dict):
+            raise IntegrationError(f"Hermes 配置根节点必须是对象：{config_path}")
+        if uninstall:
+            changed = _remove_nested(data, ("mcp_servers", "fofamap"))
+        else:
+            _set_nested(data, ("mcp_servers", "fofamap"), {**stdio, "enabled": True, "trust": "untrusted"})
+            changed = True
+        if changed:
+            _write_text(
+                config_path,
+                yaml.safe_dump(data, allow_unicode=True, sort_keys=False),
+                dry_run=dry_run,
+                changes=result.changes,
+            )
+        else:
+            result.changes.append(f"absent {config_path}:mcp_servers.fofamap")
+
+    _install_skill(skill_path, uninstall=uninstall, force=force, dry_run=dry_run, changes=result.changes)
+    if host.id == "lmstudio":
+        encoded = base64.b64encode(json.dumps(stdio, separators=(",", ":")).encode()).decode()
+        result.deeplink = f"lmstudio://add_mcp?name=fofamap&config={quote(encoded, safe='')}"
+    return result

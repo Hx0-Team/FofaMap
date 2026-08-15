@@ -1,0 +1,72 @@
+fofa:
+  base_url: "https://fofa.info"
+  # 密钥来自 FOFA_API_KEY / FOFA_EMAIL、系统钥匙串或容器密钥。
+
+search:
+  fields: "host,protocol,ip,port,title,domain,country"
+  size: 100
+  full: false
+  start_page: 1
+  end_page: 2
+  max_pages: 10
+  max_records: 10000
+
+fast_check:
+  check_alive: false
+  timeout: 5
+
+system:
+  logger: true
+  sheet_merge: true
+  concurrency: 10
+  requests_per_second: 2.0
+  export_format: xlsx
+  output_dir: results
+  artifact_retention_days: 7
+  allow_private_network: true
+
+providers:
+  openai:
+    protocol: openai_responses
+    base_url: "https://api.openai.com/v1"
+    model: "gpt-5.6"
+    api_key_env: OPENAI_API_KEY
+    max_output_tokens: 32768
+    timeout: 120
+  deepseek:
+    protocol: openai_chat
+    base_url: "https://api.deepseek.com/v1"
+    model: "deepseek-v4-flash"
+    api_key_env: DEEPSEEK_API_KEY
+    structured_output_mode: prompt
+    max_output_tokens: 32768
+    timeout: 120
+  anthropic:
+    protocol: anthropic_messages
+    base_url: "https://api.anthropic.com"
+    model: "claude-opus-5"
+    api_key_env: ANTHROPIC_API_KEY
+    max_output_tokens: 32768
+    timeout: 120
+  ollama:
+    protocol: ollama_native
+    base_url: "http://127.0.0.1:11434"
+    model: "qwen3"
+    api_key_env: ""
+  lmstudio:
+    protocol: openai_responses
+    base_url: "http://127.0.0.1:1234/v1"
+    model: ""
+    api_key_env: ""
+
+routing:
+  default: openai
+  planner: openai
+  query_repair: deepseek
+  reflector: openai
+  summarizer: openai
+  allow_cross_provider_fallback: false
+  fallbacks: []
+
+# 主动扫描仍由环境变量控制。命令行始终展示精确的目标 / 模板 / 严重级别方案并请求审批。
+# FOFAMAP_NUCLEI_ID_ALLOWLIST 可追加管理员批准的模板 ID。

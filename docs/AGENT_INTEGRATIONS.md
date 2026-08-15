@@ -1,0 +1,108 @@
+# 智能体 MCP 与 Skills 集成
+
+FofaMap 2.0.1 提供一个可回滚的跨宿主安装器、一个通用 Agent Skill，以及兼容 Codex、Claude、Cursor、OpenClaw 和 Grok Build 的插件包。MCP server 使用本地 stdio 命令 `fofamap-mcp`，配置中不写入 FOFA 或模型密钥。
+
+## 快速使用
+
+先确认 `fofamap-mcp` 在目标宿主可见的 `PATH` 中：
+
+```bash
+python -m pip install .
+fofamap integrate --list
+fofamap integrate --agent all --dry-run
+fofamap integrate --agent cursor
+```
+
+如果宿主使用不同的 Python 环境，可指定绝对命令：
+
+```bash
+fofamap integrate --agent codex --server-command /absolute/path/to/fofamap-mcp
+```
+
+项目级安装写入当前目录；也可以显式指定根目录：
+
+```bash
+fofamap integrate --agent claude --scope project --project-root /path/to/project
+```
+
+卸载只移除名为 `fofamap` 的 MCP 项和带 `.fofamap-managed.json` 的 Skill/插件：
+
+```bash
+fofamap integrate --agent claude --uninstall
+```
+
+## 支持矩阵
+
+| 宿主 | MCP | Skills | 安装方式与限制 |
+|---|---|---|---|
+| Cursor | 原生 | 原生 | 合并 `mcp.json`，安装 Cursor Skill |
+| Codex | 原生 | 原生 | 在 `config.toml` 写入带边界标记的 MCP block，安装通用 Skill |
+| Claude Code | 原生 | 原生 | 合并 `.mcp.json`/`.claude.json`，安装 Claude Skill |
+| OpenCode | 原生 | 原生 | 合并 `opencode.json` 的本地 MCP 项，安装 OpenCode Skill |
+| DeepSeek Harness | Tools bridge | 原生 | 生成 Cordis patch；当前 Harness 不消费 MCP Resources/Prompts，账号与字段能力改用 `fofa_account` / `fofa_fields` Tools |
+| LM Studio | 原生 | 兼容层 | 合并 `~/.lmstudio/mcp.json` 并输出官方 `lmstudio://add_mcp` deeplink；官方没有 Agent Skills loader |
+| OpenClaw | 兼容 Bundle（原生加载） | 兼容 Bundle（原生加载） | user scope 优先调用官方插件生命周期，安装包含 `mcpServers` 与 `skills` 的 Codex-compatible bundle |
+| Hermes Agent | 原生 | 原生 | 合并 `~/.hermes/config.yaml`，默认将 server 设为 `trust: untrusted` |
+| Grok Build | Claude 兼容插件 | 原生插件 | 安装到 `.grok/plugins`；Grok 自动读取 Claude-compatible MCP/plugin bundle |
+
+`gork`、`claude-code`、`deepseek`、`dsh` 和 `lm-studio` 是命令行别名。
+
+## 默认路径
+
+| 宿主 | user scope | project scope |
+|---|---|---|
+| Cursor | `~/.cursor/mcp.json`, `~/.cursor/skills/fofamap` | `.cursor/mcp.json`, `.cursor/skills/fofamap` |
+| Codex | `~/.codex/config.toml`, `~/.agents/skills/fofamap` | `.codex/config.toml`, `.agents/skills/fofamap` |
+| Claude Code | `~/.claude.json`, `~/.claude/skills/fofamap` | `.mcp.json`, `.claude/skills/fofamap` |
+| OpenCode | `~/.config/opencode/opencode.json`, `~/.config/opencode/skills/fofamap` | `opencode.json`, `.opencode/skills/fofamap` |
+| DeepSeek Harness | `~/.dsh/cordis.patch.yml`, `~/.dsh/skills/fofamap` | `.dsh/fofamap.cordis.yml`, `.dsh/skills/fofamap` |
+| LM Studio | `~/.lmstudio/mcp.json`, `~/.lmstudio/skills/fofamap` | LM Studio 配置仍为用户级 |
+| OpenClaw | `~/.openclaw/extensions/fofamap` | `.openclaw/extensions/fofamap` |
+| Hermes Agent | `~/.hermes/config.yaml`, `~/.hermes/skills/fofamap` | MCP 配置仍为用户级，Skill 使用 `.agents/skills/fofamap` |
+| Grok Build | `~/.grok/plugins/fofamap` | `.grok/plugins/fofamap` |
+
+DeepSeek Harness 的 project scope 生成独立 overlay，启动时传入输出中给出的 `--patch` 路径。LM Studio 和 Hermes 的 MCP 配置本身是用户级，因此 project scope 只改变其 Skill 的发现范围（LM Studio 没有官方 Skill 发现机制）。
+
+OpenClaw CLI 可用时，user scope 会调用 `openclaw plugins install/uninstall`，因此 bundle 带安装来源与信任记录；CLI 不可用或使用 project scope 时，安装器退回 OpenClaw 官方支持的扩展发现目录。
+
+## 分发资产
+
+- 通用 Skill：`agent-kit/skills/fofamap/`
+- 跨宿主插件：`agent-kit/plugins/fofamap/`
+- Codex manifest：`.codex-plugin/plugin.json`
+- Claude manifest：`.claude-plugin/plugin.json`
+- Cursor manifest：`.cursor-plugin/plugin.json`
+- OpenClaw manifest：`openclaw.plugin.json`
+
+Grok Build 会直接读取插件内的 Claude 格式；无需维护第二套 MCP 声明。
+
+## 安全与恢复
+
+- 安装器只写 MCP command/args，不读取或复制 `FOFA_API_KEY`、模型密钥或 bearer token。
+- 已存在的配置文件首次修改前备份为 `<name>.fofamap.bak`，之后不会覆盖该备份。
+- JSON/YAML 无法安全解析时立即停止，不猜测或重写损坏配置。
+- 同名 Skill/插件如果没有 FofaMap 管理标记，默认拒绝覆盖；`--force` 会先移动到 `.fofamap.bak`。
+- active Nuclei 扫描仍受 FofaMap MCP 的计划、精确范围和一次性审批机制约束。安装 Skill 不会开启扫描。
+
+## 验证
+
+```bash
+fofamap integrate --agent all --dry-run --output-format json
+fofamap integrate --agent codex
+codex mcp list
+fofamap integrate --agent codex --uninstall
+```
+
+不同宿主通常需要重启会话或刷新 MCP/插件列表。LM Studio 也可以打开安装器输出的 deeplink；Hermes 可在会话中运行 `/reload-mcp`。
+
+## 上游能力依据
+
+- [Codex MCP](https://developers.openai.com/codex/mcp) 与 [Codex Skills](https://developers.openai.com/codex/skills)
+- [Cursor MCP](https://cursor.com/docs/mcp)、[Cursor Skills](https://cursor.com/docs/skills) 与 [Cursor Plugins](https://cursor.com/docs/plugins)
+- [Claude Code MCP](https://code.claude.com/docs/en/mcp) 与 [Claude plugins](https://code.claude.com/docs/en/plugins)
+- [OpenCode MCP](https://opencode.ai/v2/docs/mcp-servers) 与 [OpenCode Skills](https://opencode.ai/docs/skills)
+- [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)
+- [LM Studio MCP deeplink](https://lmstudio.ai/docs/app/mcp/deeplink)
+- [OpenClaw plugin manifest](https://github.com/openclaw/openclaw/blob/main/docs/plugins/manifest.md)
+- [Hermes MCP config](https://hermes-agent.nousresearch.com/docs/reference/mcp-config-reference)
+- [Grok Build skills, plugins and marketplaces](https://docs.x.ai/build/features/skills-plugins-marketplaces)

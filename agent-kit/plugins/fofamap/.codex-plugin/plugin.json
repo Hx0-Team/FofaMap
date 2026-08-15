@@ -1,0 +1,23 @@
+{
+  "name": "fofamap",
+  "version": "2.0.1",
+  "description": "Safe FOFA asset research through the local FofaMap MCP server and Agent Skill.",
+  "author": {
+    "name": "FofaMap"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "FofaMap",
+    "shortDescription": "Search and analyze FOFA assets safely.",
+    "longDescription": "Validate FOFA syntax, search and profile assets, aggregate statistics, and export bounded results with explicit controls for active scanning.",
+    "developerName": "FofaMap",
+    "category": "Developer Tools",
+    "capabilities": ["Search", "Analyze", "Export"],
+    "defaultPrompt": [
+      "Validate and run a bounded FOFA asset search.",
+      "Profile this host with FOFA evidence.",
+      "Summarize FOFA exposure statistics."
+    ]
+  },
+  "mcpServers": "./.mcp.json"
+}
