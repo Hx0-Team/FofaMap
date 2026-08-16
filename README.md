@@ -1126,7 +1126,7 @@ FOFA 命中表示公开暴露信息；它不等于归属已确认，也不等于
 
 如果 FofaMap 对你有帮助，欢迎提交 Issue、Pull Request 或 Star。
 
-**FofaMap-V2.0由Hx0战队开发维护**
+**FofaMap-V2.0.1由Hx0战队开发维护**
 
 <img width="318" alt="image" src="https://user-images.githubusercontent.com/67818638/147641794-82f32969-4214-48da-9df2-764318225589.png">
 
@@ -1152,9 +1152,9 @@ FoFaMap 已加入 FOFA [共创者计划](https://fofa.info/development)，感谢
 
 **【战队知识星球】福利大放送，限时优惠-仅限前100名**
 
-<img width="318" height="958" alt="image" src="https://github.com/user-attachments/assets/0cf90105-be7d-49ee-bcd2-b62434e2093a" />
+<img width="318"  alt="星球优惠券" src="https://github.com/user-attachments/assets/e26cd212-787e-4ee5-858c-6e8db770f180" />
 
 
-## 历史Star
+## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=asaotomo/FofaMap&type=Date)](https://star-history.com/#asaotomo/FofaMap&Date)
+[![Star History Chart](https://api.star-history.com/chart?repos=asaotomo/FofaMap&type=date&legend=top-left&sealed_token=pOj6m3pqbZTutS2hxZF40F8rnfHguqAuIa91dY-_0QbWG7Ap2cEYV9mUrsHOz5ypJouxfd62CNi9-Rq1IO9a2RxqqpObeU1x4MKnaWPRm8wI78mI8jia3KWWhemAwSETEMKJ4qOmTnAwp6RepnxhIQbbMOQ9UoZI_XSjHGc2sHq5SIC95BrLQg-4kOWI)](https://www.star-history.com/?repos=asaotomo%2FFofaMap&type=date&legend=top-left)
