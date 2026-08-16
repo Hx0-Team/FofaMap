@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import importlib
 import json
 import os
 import shutil
@@ -128,6 +129,13 @@ def resolve_mcp_stdio(server_command: str | None = None) -> dict[str, Any]:
         raise IntegrationError(f"无法定位当前 Python 解释器：{python}")
     if not Path(server).is_file():
         raise IntegrationError(f"安装包缺少 MCP 服务入口：{server}")
+    try:
+        importlib.import_module("mcp.server.mcpserver")
+    except ImportError as exc:
+        raise IntegrationError(
+            "当前 Python 环境缺少 FofaMap 2.0.1 所需的 mcp>=2,<3。"
+            "请先在虚拟环境中安装 Wheel 或执行 `python -m pip install .`，再重新运行 integrate。"
+        ) from exc
     return {"command": python, "args": ["-u", server]}
 
 

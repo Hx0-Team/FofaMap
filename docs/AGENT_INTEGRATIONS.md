@@ -78,6 +78,7 @@ Grok Build 会直接读取插件内的 Claude 格式；无需维护第二套 MCP
 
 - 安装器只写 MCP command/args，不读取或复制 `FOFA_API_KEY`、模型密钥或 bearer token。
 - 默认 command/args 固定为执行安装器的 Python 环境和同一安装包中的 MCP 入口；虚拟环境路径不会被解析成缺少依赖的基础 Python。
+- 写入配置前会确认当前环境包含 FofaMap 2.0.1 所需的 MCP 2.x SDK；依赖不完整时明确停止，避免产生路径正确但进程无法启动的假成功配置。
 - 已存在的配置文件首次修改前备份为 `<name>.fofamap.bak`，之后不会覆盖该备份。
 - JSON/YAML 无法安全解析时立即停止，不猜测或重写损坏配置。
 - 同名 Skill/插件如果没有 FofaMap 管理标记，默认拒绝覆盖；`--force` 会先移动到 `.fofamap.bak`。

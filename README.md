@@ -1,4 +1,4 @@
-# 🗺️ FofaMap 2.0.1 - 证据驱动的资产测绘智能体
+# 🗺️ FofaMap 2.0.1
 
 ![FofaMap 2.0.1 中文产品海报](docs/assets/readme/fofamap-2.0.1-hero-cn.png)
 
@@ -1031,6 +1031,8 @@ fofamap-mcp --help
 ```
 
 若旧配置显示 `spawn fofamap-mcp ENOENT`，重新执行 `fofamap integrate --agent cursor` 后重启 Cursor；安装器会把裸命令升级为绝对启动路径。其他宿主同理。LM Studio 官方支持 MCP，但没有统一的原生 Skill loader，因此 Skill 标记为兼容层；DeepSeek Harness 的 MCP 桥接目前只暴露 Tools。
+
+如果集成器提示当前 Python 缺少 `mcp>=2,<3`，说明正在使用未安装完整 2.0.1 依赖的系统 Python。请按“推荐安装”创建虚拟环境并安装 Wheel，再在该虚拟环境中重跑 `fofamap integrate`；安装器不会再写入一个无法启动的配置。
 
 </details>
 

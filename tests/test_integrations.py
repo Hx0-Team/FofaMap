@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib
 import json
 import os
 import queue
@@ -130,6 +131,19 @@ def test_lmstudio_emits_official_add_mcp_deeplink(tmp_path: Path):
 def test_default_stdio_is_absolute_and_explicit_override_is_preserved():
     assert resolve_mcp_stdio() == _expected_stdio()
     assert resolve_mcp_stdio(" /custom/fofamap-mcp ") == {"command": "/custom/fofamap-mcp", "args": []}
+
+
+def test_default_stdio_rejects_an_incomplete_mcp_runtime(monkeypatch: pytest.MonkeyPatch):
+    real_import = importlib.import_module
+
+    def fail_mcp_import(name: str):
+        if name == "mcp.server.mcpserver":
+            raise ImportError("missing MCP 2")
+        return real_import(name)
+
+    monkeypatch.setattr("core.integrations.importlib.import_module", fail_mcp_import)
+    with pytest.raises(IntegrationError, match="mcp>=2,<3"):
+        resolve_mcp_stdio()
 
 
 def test_default_stdio_completes_a_real_mcp_initialize_and_tools_handshake(tmp_path: Path):
