@@ -1,6 +1,6 @@
-# 🗺️ FofaMap 2.0.1
+# 🗺️ FofaMap 2.0.1 - 一款证据驱动的 FOFA 资产测绘智能体
 
-![FofaMap 2.0.1 中文产品海报](docs/assets/readme/fofamap-2.0.1-hero-cn.png)
+<img width="1672" height="941" alt="image" src="https://github.com/user-attachments/assets/e9befecf-80ce-41a5-96df-f0a0298bdcfe" />
 
 > 把自然语言资产发现、FOFA 证据检索、AI 反思总结与经人工审批的 Nuclei 扫描，放进同一条可追溯工作流。
 
@@ -84,19 +84,22 @@ Agent 负责规划和总结；查询、分页、字段映射、导出、审批�
 
 普通查询不需要模型。终端展示适合人读的字段，导出文件仍保留完整字段。
 
-![FofaMap 经典检索与导出](docs/assets/readme/asset-search.png)
+<img width="1810" height="829" alt="image" src="https://github.com/user-attachments/assets/89512ec8-6461-45ac-ab3b-0b506e90aa75" />
+
 
 ### Agent 证据化简报
 
 开放式任务会组合域名、证书、页面品牌和内置规则；总结明确区分高置信资产、候选、噪声与尚未覆盖的证据。
 
-![FofaMap Agent 证据化简报](docs/assets/readme/ai-briefing.png)
+<img width="1810" height="2255" alt="image" src="https://github.com/user-attachments/assets/6be1f86f-213c-4b98-97bf-f7c0fd0b7927" />
+
 
 ### `all / all` 扫描审批
 
 模板 ID 和严重级别都支持 `all`。这意味着运行当前 Nuclei 可加载的全部模板和全部严重级别，程序会显示红色范围警告并再次要求审批。
 
-![FofaMap Nuclei all all 审批](docs/assets/readme/scan-approval.png)
+<img width="1810" height="674" alt="image" src="https://github.com/user-attachments/assets/172dc053-42d8-4948-a2c8-f6a5949244c6" />
+
 
 截图中的 `example-lab.com` 为合成演示名称，`192.0.2.0/24` 为文档保留网段；它们不代表真实扫描结果。
 
@@ -540,7 +543,8 @@ AI 提供商支持 OpenAI、DeepSeek、Anthropic、Ollama、LM Studio 及兼容�
 
 Skill 不只是提示词示例，它规定了规则库优先、语法校验、按需翻页、大结果导出、证据边界和扫描审批顺序。
 
-![FofaMap Agent Skill 标准工作流](docs/assets/readme/skill-workflow.png)
+<img width="1810" height="767" alt="image" src="https://github.com/user-attachments/assets/ba70f4f5-092f-4a3e-8787-fbf9f4c14d16" />
+
 
 ### 一键接入 AI 宿主
 
@@ -555,7 +559,8 @@ fofamap integrate --agent all --dry-run
 
 当前集成覆盖 Cursor、Codex、Claude Code、OpenCode、DeepSeek Harness、LM Studio、OpenClaw、Hermes 和 Grok Build。安装器会自动写入当前 Python 与 `mcp_server.py` 的绝对路径，不依赖 GUI 应用的 `PATH`；同时会合并已有配置、首次修改前创建备份，并且不会读取或复制密钥。
 
-![FofaMap Skill 与 MCP 多宿主集成矩阵](docs/assets/readme/integration-matrix.png)
+<img width="1810" height="798" alt="image" src="https://github.com/user-attachments/assets/079585ed-a002-4184-830d-335af848ff4a" />
+
 
 如果曾用早期 2.0.1 安装器生成过 `"command": "fofamap-mcp"`，重新运行相同的集成命令即可原地升级。卸载只移除 FofaMap 管理的条目：
 
@@ -600,7 +605,8 @@ fofamap integrate --agent cursor --server-command /absolute/path/to/fofamap-mcp
 | 编排与导出 | `fofa_agent_run`、`fofa_export`、`fofa_job_status` |
 | 受控扫描 | `nuclei_plan`、`nuclei_execute` |
 
-![FofaMap MCP 结构化工具目录](docs/assets/readme/mcp-tool-catalog.png)
+<img width="1810" height="860" alt="image" src="https://github.com/user-attachments/assets/9545cf38-2c1e-4ded-988f-cc9be01ce0f8" />
+
 
 推荐调用顺序：规则库 → 语法校验 → 单页查询 → 按 `next_cursor` 连续翻页 → 大结果导出。开放式中文需求可以直接调用 `fofa_agent_run`。
 
@@ -778,7 +784,7 @@ fofamap-api
 
 默认地址为 `http://127.0.0.1:8000`，Swagger UI 为 `http://127.0.0.1:8000/docs`，OpenAPI JSON 为 `/openapi.json`。
 
-![FofaMap REST OpenAPI 页面](docs/assets/readme/api-openapi.png)
+<img width="1265" height="712" alt="image" src="https://github.com/user-attachments/assets/e392d1af-42cc-43f9-bf5d-878a3e282741" />
 
 ### REST 接口目录
 
@@ -1120,10 +1126,35 @@ FOFA 命中表示公开暴露信息；它不等于归属已确认，也不等于
 
 如果 FofaMap 对你有帮助，欢迎提交 Issue、Pull Request 或 Star。
 
-<p align="center">
-  <img src="Hx0战队.png" alt="Hx0 战队" width="180" />
-  &nbsp;&nbsp;&nbsp;
-  <img src="微信扫码关注公众号：Hx0战队.png" alt="Hx0 战队公众号" width="180" />
-</p>
+**FofaMap-V2.0由Hx0战队开发维护**
+
+<img width="318" alt="image" src="https://user-images.githubusercontent.com/67818638/147641794-82f32969-4214-48da-9df2-764318225589.png">
+
+**【打赏支持❤️】代码传情跨山海，点滴支持皆温暖✨**
+
+虽然代码完全开源，但每杯咖啡都能让我们走得更远 ☕️
+
+<img width="500" height="400" alt="打赏码" src="https://github.com/user-attachments/assets/02868aed-357e-4740-983a-d5a8ea05bdbf" />
+
+**特别鸣谢～渊龙Sec团队**
+
+<img width="318" alt="image" src="https://user-images.githubusercontent.com/67818638/167256183-7c485b4c-1e5f-4bbe-a8de-3cf267ebd5ec.jpg">
+
+**特别鸣谢～FOFA官方**
+
+FoFaMap 已加入 FOFA [共创者计划](https://fofa.info/development)，感谢 FOFA 提供的账号支持。
+
+<img width="318" alt="image" src="https://user-images.githubusercontent.com/67818638/210543196-b76f6808-b5dd-4933-9451-0c3217dca8f5.png">
+
+**【战队公众号】扫描关注战队公众号，获取最新动态**
+
+<img width="318" alt="image" src="https://user-images.githubusercontent.com/67818638/149507366-4ada14db-a972-4071-bbb6-197659f61ced.png">
+
+**【战队知识星球】福利大放送，限时优惠-仅限前100名**
+
+<img width="318" height="958" alt="image" src="https://github.com/user-attachments/assets/0cf90105-be7d-49ee-bcd2-b62434e2093a" />
+
+
+## 历史Star
 
 [![Star History Chart](https://api.star-history.com/svg?repos=asaotomo/FofaMap&type=Date)](https://star-history.com/#asaotomo/FofaMap&Date)
