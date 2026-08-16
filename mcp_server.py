@@ -91,11 +91,12 @@ def _build_mcp() -> MCPServer:
     if issuer and resource:
         return MCPServer(
             "fofamap_mcp",
+            version="2.0.1",
             instructions=MCP_INSTRUCTIONS,
             auth=AuthSettings(issuer_url=issuer, resource_server_url=resource, required_scopes=[]),
             token_verifier=_TokenVerifier(),
         )
-    return MCPServer("fofamap_mcp", instructions=MCP_INSTRUCTIONS)
+    return MCPServer("fofamap_mcp", version="2.0.1", instructions=MCP_INSTRUCTIONS)
 
 
 mcp = _build_mcp()

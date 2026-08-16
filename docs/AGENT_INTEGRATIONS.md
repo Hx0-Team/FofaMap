@@ -1,10 +1,8 @@
 # 智能体 MCP 与 Skills 集成
 
-FofaMap 2.0.1 提供一个可回滚的跨宿主安装器、一个通用 Agent Skill，以及兼容 Codex、Claude、Cursor、OpenClaw 和 Grok Build 的插件包。MCP server 使用本地 stdio 命令 `fofamap-mcp`，配置中不写入 FOFA 或模型密钥。
+FofaMap 2.0.1 提供一个可回滚的跨宿主安装器、一个通用 Agent Skill，以及兼容 Codex、Claude、Cursor、OpenClaw 和 Grok Build 的插件包。安装器默认把当前 Python 与 `mcp_server.py` 的绝对路径写入 stdio 配置，避免 Cursor 等 GUI 应用因没有继承终端 `PATH` 而出现 `spawn fofamap-mcp ENOENT`；配置中不写入 FOFA 或模型密钥。
 
 ## 快速使用
-
-先确认 `fofamap-mcp` 在目标宿主可见的 `PATH` 中：
 
 ```bash
 python -m pip install .
@@ -13,7 +11,7 @@ fofamap integrate --agent all --dry-run
 fofamap integrate --agent cursor
 ```
 
-如果宿主使用不同的 Python 环境，可指定绝对命令：
+默认无需手工查找 `fofamap-mcp`。如果宿主必须使用另一套已安装环境，可显式覆盖命令：
 
 ```bash
 fofamap integrate --agent codex --server-command /absolute/path/to/fofamap-mcp
@@ -79,6 +77,7 @@ Grok Build 会直接读取插件内的 Claude 格式；无需维护第二套 MCP
 ## 安全与恢复
 
 - 安装器只写 MCP command/args，不读取或复制 `FOFA_API_KEY`、模型密钥或 bearer token。
+- 默认 command/args 固定为执行安装器的 Python 环境和同一安装包中的 MCP 入口；虚拟环境路径不会被解析成缺少依赖的基础 Python。
 - 已存在的配置文件首次修改前备份为 `<name>.fofamap.bak`，之后不会覆盖该备份。
 - JSON/YAML 无法安全解析时立即停止，不猜测或重写损坏配置。
 - 同名 Skill/插件如果没有 FofaMap 管理标记，默认拒绝覆盖；`--force` 会先移动到 `.fofamap.bak`。
@@ -94,6 +93,8 @@ fofamap integrate --agent codex --uninstall
 ```
 
 不同宿主通常需要重启会话或刷新 MCP/插件列表。LM Studio 也可以打开安装器输出的 deeplink；Hermes 可在会话中运行 `/reload-mcp`。
+
+如果早期 2.0.1 配置中仍是 `"command": "fofamap-mcp"`，直接重跑相同的 `integrate` 命令即可升级；安装器会保留其他 MCP 服务和用户配置。
 
 ## 上游能力依据
 

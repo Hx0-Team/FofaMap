@@ -1206,7 +1206,7 @@ async def _main_async(**options: Any) -> int:
                     target,
                     scope=options.get("integration_scope") or "user",
                     root=root,
-                    server_command=options.get("server_command") or "fofamap-mcp",
+                    server_command=options.get("server_command"),
                     uninstall=bool(options.get("uninstall_integration")),
                     dry_run=bool(options.get("dry_run")),
                     force=bool(options.get("force_integration")),
@@ -1477,7 +1477,11 @@ async def _main_async(**options: Any) -> int:
 @click.option("--list", "list_integrations", is_flag=True, help="列出 MCP 与 Skill 支持情况")
 @click.option("--uninstall", "uninstall_integration", is_flag=True, help="仅移除 FofaMap 管理的配置与文件")
 @click.option("--dry-run", is_flag=True, help="只显示将发生的集成变更")
-@click.option("--server-command", default="fofamap-mcp", show_default=True, help="宿主启动 MCP 服务的命令（stdio）")
+@click.option(
+    "--server-command",
+    default=None,
+    help="覆盖宿主启动 MCP 的命令；默认自动写入当前 Python 与 mcp_server.py 的绝对路径",
+)
 @click.option("--project-root", type=click.Path(file_okay=False, path_type=Path), help="项目级安装时的项目根目录")
 @click.option("--force", "force_integration", is_flag=True, help="备份后替换同名、非 FofaMap 管理的 Skill/插件")
 @click.option("-init", "--init", "init_mode", is_flag=True, help="启动安全初始化向导（兼容旧用法）")

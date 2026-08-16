@@ -549,15 +549,15 @@ fofamap integrate --list
 fofamap integrate --agent cursor
 fofamap integrate --agent codex
 fofamap integrate --agent claude
-fofamap integrate --agent lmstudio --server-command /绝对路径/.venv/bin/fofamap-mcp
+fofamap integrate --agent lmstudio
 fofamap integrate --agent all --dry-run
 ```
 
-当前集成覆盖 Cursor、Codex、Claude Code、OpenCode、DeepSeek Harness、LM Studio、OpenClaw、Hermes 和 Grok Build。安装器会合并已有配置、首次修改前创建备份，并且不会读取或复制密钥。
+当前集成覆盖 Cursor、Codex、Claude Code、OpenCode、DeepSeek Harness、LM Studio、OpenClaw、Hermes 和 Grok Build。安装器会自动写入当前 Python 与 `mcp_server.py` 的绝对路径，不依赖 GUI 应用的 `PATH`；同时会合并已有配置、首次修改前创建备份，并且不会读取或复制密钥。
 
 ![FofaMap Skill 与 MCP 多宿主集成矩阵](docs/assets/readme/integration-matrix.png)
 
-GUI 应用经常无法继承终端的 `PATH`，建议用 `--server-command` 传入 `fofamap-mcp` 的绝对路径。卸载只移除 FofaMap 管理的条目：
+如果曾用早期 2.0.1 安装器生成过 `"command": "fofamap-mcp"`，重新运行相同的集成命令即可原地升级。卸载只移除 FofaMap 管理的条目：
 
 ```bash
 fofamap integrate --agent cursor --uninstall
@@ -572,7 +572,7 @@ fofamap integrate --agent cursor --uninstall
 | `--list` | 关闭 | 查看 MCP / Skill 支持矩阵 |
 | `--uninstall` | 关闭 | 仅移除 FofaMap 管理的条目 |
 | `--dry-run` | 关闭 | 只展示将发生的变更 |
-| `--server-command` | `fofamap-mcp` | 宿主启动 stdio MCP 的命令；GUI 推荐绝对路径 |
+| `--server-command` | 自动解析 | 高级覆盖项；默认使用当前 Python 与 `mcp_server.py` 的绝对路径 |
 | `--project-root` | 当前目录 | project scope 的项目根目录 |
 | `--force` | 关闭 | 备份后替换同名但非 FofaMap 管理的 Skill / 插件 |
 
@@ -582,8 +582,13 @@ fofamap integrate --agent cursor --uninstall
 fofamap integrate \
   --agent claude \
   --scope project \
-  --project-root /path/to/project \
-  --server-command /absolute/path/to/fofamap-mcp
+  --project-root /path/to/project
+```
+
+只有在宿主必须使用另一套已安装环境时，才需要覆盖默认命令：
+
+```bash
+fofamap integrate --agent cursor --server-command /absolute/path/to/fofamap-mcp
 ```
 
 ### MCP 工具分层
@@ -970,7 +975,7 @@ source .venv/bin/activate
 .\.venv\Scripts\fofamap.exe --version
 ```
 
-Cursor、LM Studio 等 GUI 宿主请在 `fofamap integrate` 中用 `--server-command` 传绝对路径。
+这只影响在终端直接调用 `fofamap`。通过 `fofamap integrate` 安装的 Cursor、LM Studio 等 GUI 集成会自动保存可执行文件与 MCP 服务入口的绝对路径。
 
 </details>
 
@@ -1021,11 +1026,11 @@ fofamap fields
 ```bash
 fofamap integrate --list
 fofamap integrate --agent cursor --dry-run
-fofamap integrate --agent cursor --server-command /absolute/path/to/fofamap-mcp
+fofamap integrate --agent cursor
 fofamap-mcp --help
 ```
 
-安装后重启宿主或刷新 MCP / 插件列表。LM Studio 官方支持 MCP，但没有统一的原生 Skill loader，因此 Skill 标记为兼容层；DeepSeek Harness 的 MCP 桥接目前只暴露 Tools。
+若旧配置显示 `spawn fofamap-mcp ENOENT`，重新执行 `fofamap integrate --agent cursor` 后重启 Cursor；安装器会把裸命令升级为绝对启动路径。其他宿主同理。LM Studio 官方支持 MCP，但没有统一的原生 Skill loader，因此 Skill 标记为兼容层；DeepSeek Harness 的 MCP 桥接目前只暴露 Tools。
 
 </details>
 

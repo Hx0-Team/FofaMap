@@ -7,6 +7,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
@@ -109,6 +110,25 @@ def _asset_root() -> Path:
     if not root.is_dir():
         raise IntegrationError(f"安装包缺少 agent-kit 分发资产：{root}")
     return root
+
+
+def resolve_mcp_stdio(server_command: str | None = None) -> dict[str, Any]:
+    """Build a GUI-safe stdio launch spec without relying on the host's PATH."""
+    if server_command is not None:
+        command = server_command.strip()
+        if not command or "\x00" in command:
+            raise IntegrationError("MCP 服务命令不能为空或包含 NUL")
+        return {"command": command, "args": []}
+
+    # Do not resolve symlinks here: a virtualenv's python commonly points at the
+    # base interpreter, and resolving it would silently discard the venv packages.
+    python = str(Path(os.path.abspath(os.path.expanduser(sys.executable))))
+    server = str((Path(__file__).resolve().parent.parent / "mcp_server.py").resolve())
+    if not Path(python).is_file():
+        raise IntegrationError(f"无法定位当前 Python 解释器：{python}")
+    if not Path(server).is_file():
+        raise IntegrationError(f"安装包缺少 MCP 服务入口：{server}")
+    return {"command": python, "args": ["-u", server]}
 
 
 def _backup(path: Path, dry_run: bool, changes: list[str]) -> None:
@@ -293,7 +313,7 @@ def _install_skill(
 def _install_plugin(
     destination: Path,
     *,
-    server_command: str,
+    stdio: dict[str, Any],
     uninstall: bool,
     force: bool,
     dry_run: bool,
@@ -305,21 +325,32 @@ def _install_plugin(
     _copy_managed(_asset_root() / "plugins" / "fofamap", destination, kind="plugin", force=force, dry_run=dry_run, changes=changes)
     if dry_run:
         return
-    mcp_path = destination / ".mcp.json"
-    mcp_data = _read_json(mcp_path)
-    mcp_data["mcpServers"]["fofamap"]["command"] = server_command
-    mcp_path.write_text(json.dumps(mcp_data, indent=2) + "\n", encoding="utf-8")
-    openclaw_path = destination / "openclaw.plugin.json"
-    openclaw_data = _read_json(openclaw_path)
-    openclaw_data["mcpServers"]["fofamap"]["command"] = server_command
-    openclaw_path.write_text(json.dumps(openclaw_data, indent=2) + "\n", encoding="utf-8")
+    _set_plugin_launch(destination, stdio)
+
+
+def _set_plugin_launch(destination: Path, stdio: dict[str, Any]) -> None:
+    """Keep every plugin manifest on the same executable and argument list."""
+    for relative in (".mcp.json", "openclaw.plugin.json"):
+        path = destination / relative
+        if not path.exists():
+            continue
+        data = _read_json(path)
+        try:
+            entry = data["mcpServers"]["fofamap"]
+        except (KeyError, TypeError) as exc:
+            raise IntegrationError(f"插件清单缺少 mcpServers.fofamap：{path}") from exc
+        if not isinstance(entry, dict):
+            raise IntegrationError(f"插件清单 mcpServers.fofamap 必须是对象：{path}")
+        entry["command"] = stdio["command"]
+        entry["args"] = list(stdio["args"])
+        path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
 def _install_openclaw_plugin(
     destination: Path,
     *,
     home: Path,
-    server_command: str,
+    stdio: dict[str, Any],
     uninstall: bool,
     force: bool,
     dry_run: bool,
@@ -357,10 +388,7 @@ def _install_openclaw_plugin(
             json.dumps({"managed_by": "fofamap", "kind": "plugin", "version": "2.0.1"}, indent=2) + "\n",
             encoding="utf-8",
         )
-        mcp_path = destination / ".mcp.json"
-        mcp_data = _read_json(mcp_path)
-        mcp_data["mcpServers"]["fofamap"]["command"] = server_command
-        mcp_path.write_text(json.dumps(mcp_data, indent=2) + "\n", encoding="utf-8")
+        _set_plugin_launch(destination, stdio)
     return True
 
 
@@ -410,7 +438,7 @@ def integrate_host(
     scope: str = "user",
     root: Path | None = None,
     home: Path | None = None,
-    server_command: str = "fofamap-mcp",
+    server_command: str | None = None,
     uninstall: bool = False,
     dry_run: bool = False,
     force: bool = False,
@@ -419,8 +447,6 @@ def integrate_host(
     host = normalize_host(target)
     if scope not in {"user", "project"}:
         raise IntegrationError("scope 必须是 user 或 project")
-    if not server_command.strip() or "\x00" in server_command:
-        raise IntegrationError("MCP 服务命令不能为空或包含 NUL")
     root = (root or Path.cwd()).resolve()
     home = (home or Path.home()).expanduser().resolve()
     action = "uninstall" if uninstall else "install"
@@ -428,7 +454,9 @@ def integrate_host(
     if host.notes:
         result.notes.append(host.notes)
     config_path, skill_path = _paths(host.id, scope, root, home)
-    stdio = {"command": server_command, "args": []}
+    stdio = resolve_mcp_stdio(server_command) if not uninstall else {"command": "", "args": []}
+    if not uninstall:
+        result.notes.append("MCP 启动配置已固定为当前 Python 与服务入口的绝对路径，不依赖 GUI 应用的 PATH。")
 
     if host.id in {"openclaw", "grok"}:
         assert config_path is not None
@@ -437,7 +465,7 @@ def integrate_host(
             handled = _install_openclaw_plugin(
                 config_path,
                 home=home,
-                server_command=server_command,
+                stdio=stdio,
                 uninstall=uninstall,
                 force=force,
                 dry_run=dry_run,
@@ -446,7 +474,7 @@ def integrate_host(
         if not handled:
             _install_plugin(
                 config_path,
-                server_command=server_command,
+                stdio=stdio,
                 uninstall=uninstall,
                 force=force,
                 dry_run=dry_run,
@@ -473,13 +501,13 @@ def integrate_host(
         _json_config(
             config_path,
             ("mcp", "fofamap"),
-            {"type": "local", "command": [server_command], "enabled": True},
+            {"type": "local", "command": [stdio["command"], *stdio["args"]], "enabled": True},
             uninstall=uninstall,
             dry_run=dry_run,
             changes=result.changes,
         )
     elif host.id == "codex":
-        block = f'[mcp_servers.fofamap]\ncommand = {json.dumps(server_command)}\nargs = []'
+        block = f'[mcp_servers.fofamap]\ncommand = {json.dumps(stdio["command"])}\nargs = {json.dumps(stdio["args"])}'
         _managed_config(config_path, block, uninstall=uninstall, dry_run=dry_run, changes=result.changes)
     elif host.id == "deepseek-harness":
         block = (
@@ -489,8 +517,8 @@ def integrate_host(
             "      config:\n"
             "        serverName: fofamap\n"
             "        transport: stdio\n"
-            f"        command: {json.dumps(server_command)}\n"
-            "        args: []\n"
+            f"        command: {json.dumps(stdio['command'])}\n"
+            f"        args: {json.dumps(stdio['args'])}\n"
             "        failOnStartupError: true"
         )
         _managed_config(
